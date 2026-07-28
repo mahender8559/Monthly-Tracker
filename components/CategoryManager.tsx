@@ -36,6 +36,7 @@ export function CategoryManager({ userId, categories, onRefresh, supabase }: Pro
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const deleteCategory = async (category: Category) => {
+    if (category.is_default) return;
     if (!confirm(`Delete category "${category.name}"? Transactions using this category will be unassigned.`)) return;
     setDeletingId(category.id);
     try {
@@ -104,6 +105,7 @@ export function CategoryManager({ userId, categories, onRefresh, supabase }: Pro
 
             <input
               defaultValue={category.icon}
+              disabled={category.is_default}
               maxLength={4}
               aria-label={`${category.name} icon`}
               onBlur={(event) => {
@@ -114,6 +116,7 @@ export function CategoryManager({ userId, categories, onRefresh, supabase }: Pro
 
             <input
               defaultValue={category.name}
+              disabled={category.is_default}
               aria-label="Category name"
               onBlur={(event) => {
                 if (event.target.value.trim() && event.target.value !== category.name) void updateCategory(category.id, { name: event.target.value.trim() });
@@ -122,13 +125,13 @@ export function CategoryManager({ userId, categories, onRefresh, supabase }: Pro
             />
 
             <div className="flex items-center justify-end gap-3">
-              <button
+              {category.is_default ? <span className="text-xs font-semibold text-slate-400">Required</span> : <button
                 onClick={() => deleteCategory(category)}
                 disabled={deletingId === category.id}
                 className="text-sm font-medium text-red-500 hover:text-red-700 disabled:opacity-50"
               >
                 {deletingId === category.id ? 'Deleting...' : 'Delete'}
-              </button>
+              </button>}
             </div>
           </div>
         ))}
@@ -136,4 +139,3 @@ export function CategoryManager({ userId, categories, onRefresh, supabase }: Pro
     </section>
   );
 }
-

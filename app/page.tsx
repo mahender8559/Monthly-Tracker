@@ -12,6 +12,7 @@ import { useCategories } from '@/hooks/use-categories';
 import { useMonthOptions } from '@/hooks/use-month-options';
 import type { Category, LedgerEntry, LedgerType, NewInputs, OverallStats, PaymentMethod, Transaction } from '@/types/finance';
 import { formatCurrency, getOrdinal, sumEntries } from '@/utils/finance';
+import { getBillingCycle } from '@/utils/billing-cycle';
 
 type DashboardTransactionRaw = {
   id?: string;
@@ -37,6 +38,7 @@ export default function Dashboard() {
   const [ledgerData, setLedgerData] = useState<LedgerEntry[]>([]);
   const [rawTransactions, setRawTransactions] = useState<Transaction[]>([]);
   const [savingsPaymentsToDate, setSavingsPaymentsToDate] = useState(0);
+  const [fundCategoryContributionsToDate, setFundCategoryContributionsToDate] = useState(0);
   const [dataLoading, setDataLoading] = useState(false);
   const [newInputs, setNewInputs] = useState<NewInputs>({});
   const [overallStats, setOverallStats] = useState<OverallStats>({ investments: 0, savings: 0 });
@@ -44,9 +46,11 @@ export default function Dashboard() {
   const [showBankBreakdown, setShowBankBreakdown] = useState(true);
   const [ccBillingDay, setCcBillingDay] = useState(15);
   const [ccDueDay, setCcDueDay] = useState(5);
+  const [billingCycleStartDay, setBillingCycleStartDay] = useState(1);
 
   const { categories } = useCategories(session?.user.id);
   const monthOptions = useMonthOptions();
+  const billingCycle = useMemo(() => getBillingCycle(selectedMonth, billingCycleStartDay), [selectedMonth, billingCycleStartDay]);
 
   const ccDueDateString = useMemo(() => {
     const date = new Date(`${selectedMonth} 1`);
@@ -71,8 +75,9 @@ export default function Dashboard() {
       setShowBankBreakdown(data.show_bank_breakdown);
       setCcBillingDay(data.cc_billing_day || 15);
       setCcDueDay(data.cc_due_day || 5);
+      setBillingCycleStartDay(data.billing_cycle_start_day || 1);
     } else {
-      await supabase.from('user_settings').insert([{ user_id: session.user.id, bank_name: 'IDFC Account Money Breakdown', show_bank_breakdown: true, cc_billing_day: 15, cc_due_day: 5 }]);
+      await supabase.from('user_settings').insert([{ user_id: session.user.id, bank_name: 'IDFC Account Money Breakdown', show_bank_breakdown: true, cc_billing_day: 15, cc_due_day: 5, billing_cycle_start_day: 1 }]);
       setBankName('IDFC Account Money Breakdown');
     }
   }, [session]);
@@ -81,15 +86,19 @@ export default function Dashboard() {
     if (!session) return;
     setDataLoading(true);
     setLedgerData([]);
-    const monthEnd = new Date(`${month} 1`);
-    monthEnd.setMonth(monthEnd.getMonth() + 1, 0);
-    const monthEndDate = monthEnd.toISOString().slice(0, 10);
-    const [{ data: monthly }, { data: future }, { data: savingsPayments }] = await Promise.all([
+    const cycle = getBillingCycle(month, billingCycleStartDay);
+    const [{ data: monthly }, { data: future }, { data: savingsPayments }, { data: fundCategoryTransactions }] = await Promise.all([
       supabase.from('ledger').select('*').eq('user_id', session.user.id).eq('month', month).neq('type', 'Future Purchases'),
       supabase.from('ledger').select('*').eq('user_id', session.user.id).eq('type', 'Future Purchases'),
-      supabase.from('transactions').select('amount').eq('user_id', session.user.id).eq('payment_method', 'Savings').lte('date', monthEndDate),
+      supabase.from('transactions').select('amount').eq('user_id', session.user.id).eq('payment_method', 'Savings').lt('date', cycle.endDateExclusive),
+      supabase.from('transactions').select('amount, category:categories(name)').eq('user_id', session.user.id).eq('transaction_type', 'Actual Expense').lt('date', cycle.endDateExclusive),
     ]);
     setSavingsPaymentsToDate((savingsPayments ?? []).reduce((sum, payment) => sum + Number(payment.amount), 0));
+    const fundTransactions = (fundCategoryTransactions ?? []) as DashboardTransactionRaw[];
+    setFundCategoryContributionsToDate(fundTransactions.reduce((sum, transaction) => {
+      const category = Array.isArray(transaction.category) ? transaction.category[0] : transaction.category;
+      return category?.name === 'Savings' || category?.name === 'Investments' ? sum + Number(transaction.amount) : sum;
+    }, 0));
     const monthEntries = (monthly ?? []) as LedgerEntry[];
 
     // Carry over or initialize IDFC Breakdown for this month
@@ -132,52 +141,12 @@ export default function Dashboard() {
       }
     }
 
-    // Carry balances forward only from an earlier month. This prevents an asset
-    // created later from appearing when an older month is opened.
-    const hasAssetInMonth = monthEntries.some((e) => e.type === 'Asset Breakdown');
-    const assetMonthKey = `asset_init_${session.user.id}_${month}`;
-    if (!hasAssetInMonth && typeof window !== 'undefined' && !localStorage.getItem(assetMonthKey)) {
-      localStorage.setItem(assetMonthKey, 'true');
-      const { data: existingAssets } = await supabase
-        .from('ledger')
-        .select('*')
-        .eq('user_id', session.user.id)
-        .eq('type', 'Asset Breakdown');
-
-      const selectedMonthDate = new Date(`${month} 1`);
-      const eligibleAssets = (existingAssets ?? []).filter((item) => {
-        const assetMonthDate = new Date(`${item.month} 1`);
-        return !Number.isNaN(assetMonthDate.getTime()) && assetMonthDate < selectedMonthDate;
-      });
-
-      if (eligibleAssets.length > 0) {
-        const latestAssetMonth = eligibleAssets.reduce((latest, item) =>
-          new Date(`${item.month} 1`) > new Date(`${latest} 1`) ? item.month : latest,
-        eligibleAssets[0].month);
-        const uniqueCategories = new Map<string, number>();
-        eligibleAssets.filter((item) => item.month === latestAssetMonth).forEach((item) => {
-          uniqueCategories.set(item.category, Number(item.amount));
-        });
-        const newMonthAssets = Array.from(uniqueCategories.entries()).map(([category, amount]) => ({
-          month,
-          category,
-          amount,
-          type: 'Asset Breakdown' as LedgerType,
-          user_id: session.user.id,
-        }));
-        if (newMonthAssets.length > 0) {
-          const { data: insertedAssets } = await supabase.from('ledger').insert(newMonthAssets).select();
-          if (insertedAssets) monthEntries.push(...(insertedAssets as LedgerEntry[]));
-        }
-      }
-    }
-
     const existingSummaryCategories = new Set(monthEntries.filter((entry) => entry.type === 'Summary').map((entry) => entry.category));
     const missingSummaryEntries = ['Investments'].filter((category) => !existingSummaryCategories.has(category)).map((category) => ({ month, category, amount: 0, type: 'Summary', user_id: session.user.id }));
     const { data: createdSummaries } = missingSummaryEntries.length ? await supabase.from('ledger').insert(missingSummaryEntries).select() : { data: [] };
     setLedgerData([...monthEntries, ...((createdSummaries ?? []) as LedgerEntry[]), ...((future ?? []) as LedgerEntry[])]);
     setDataLoading(false);
-  }, [session]);
+  }, [session, billingCycleStartDay]);
 
   const fetchOverallStats = useCallback(async () => {
     if (!session) return;
@@ -209,11 +178,13 @@ export default function Dashboard() {
 
   const fetchTransactions = useCallback(async (month: string) => {
     if (!session) return;
+    const cycle = getBillingCycle(month, billingCycleStartDay);
     const { data, error } = await supabase
       .from('transactions')
       .select('*, category:categories(*)')
       .eq('user_id', session.user.id)
-      .eq('month', month)
+      .gte('date', cycle.startDate)
+      .lt('date', cycle.endDateExclusive)
       .eq('transaction_type', 'Actual Expense')
       .order('date', { ascending: false });
 
@@ -223,7 +194,7 @@ export default function Dashboard() {
     }
     setRawTransactions((data ?? []) as Transaction[]);
     void fetchOverallStats();
-  }, [session, fetchOverallStats]);
+  }, [session, fetchOverallStats, billingCycleStartDay]);
 
   useEffect(() => {
     if (session) {
@@ -291,33 +262,6 @@ export default function Dashboard() {
     
     if (error) {
       alert(`Error deleting breakdown item: ${error.message}`);
-      if (session) void fetchData(selectedMonth);
-    } else if (!data || data.length === 0) {
-      alert(`Error: Item could not be deleted. It may be locked or you might not have permission.`);
-      if (session) void fetchData(selectedMonth);
-    }
-  }
-
-  async function handleAddAssetItem(label: string, amount: number) {
-    await handleSave('new', label, amount.toString(), 'Asset Breakdown');
-  }
-
-  async function handleUpdateAssetItem(id: string | number, label: string, amount: number) {
-    await handleSave(id, label, amount.toString(), 'Asset Breakdown');
-  }
-
-  async function handleDeleteAssetItem(id: string | number) {
-    if (!confirm('Delete this savings item?')) return;
-    if (!session?.user.id) {
-      alert('Please sign in again to delete this item.');
-      return;
-    }
-    setLedgerData((prev) => prev.filter((item) => String(item.id) !== String(id)));
-
-    const { data, error } = await supabase.from('ledger').delete().eq('id', id).eq('user_id', session.user.id).select('id');
-    
-    if (error) {
-      alert(`Error deleting savings item: ${error.message}`);
       if (session) void fetchData(selectedMonth);
     } else if (!data || data.length === 0) {
       alert(`Error: Item could not be deleted. It may be locked or you might not have permission.`);
@@ -445,6 +389,13 @@ export default function Dashboard() {
     await supabase.from('user_settings').update({ cc_billing_day, cc_due_day }).eq('user_id', session.user.id);
   }
 
+  async function handleBillingCycleStartDayChange(day: number) {
+    if (!session) return;
+    setBillingCycleStartDay(day);
+    const { error } = await supabase.from('user_settings').update({ billing_cycle_start_day: day }).eq('user_id', session.user.id);
+    if (error) alert(`Could not save billing cycle: ${error.message}`);
+  }
+
   async function handleAuth(event: FormEvent) {
     event.preventDefault();
     setAuthLoading(true);
@@ -546,9 +497,8 @@ export default function Dashboard() {
   }));
 
   const idfcItems = ledgerData.filter((item) => item.type === 'IDFC Breakdown');
-  const assetItems = ledgerData.filter((item) => item.type === 'Asset Breakdown');
-  const totalAssets = assetItems.reduce((sum, item) => sum + Number(item.amount), 0);
-  const totalSavingsLiquidFunds = totalAssets - savingsPaymentsToDate;
+  const totalSavingsLiquidFunds = fundCategoryContributionsToDate - savingsPaymentsToDate;
+  const fundTransactions = rawTransactions.filter((transaction) => transaction.category?.name === 'Savings' || transaction.category?.name === 'Investments');
 
   const creditCardTransactions = rawTransactions.filter(
     (tx) => tx.payment_method === 'Credit Card'
@@ -603,7 +553,10 @@ export default function Dashboard() {
         <Header
           selectedMonth={selectedMonth}
           months={monthOptions}
+          cycleStartDay={billingCycleStartDay}
+          cycleLabel={billingCycle.label}
           onMonthChange={setSelectedMonth}
+          onCycleStartDayChange={handleBillingCycleStartDayChange}
           onRollover={handleRollover}
           onSignOut={handleSignOut}
         />
@@ -638,14 +591,12 @@ export default function Dashboard() {
         <ExcelBreakdownCards
           bankName={bankName}
           creditCardTransactions={creditCardTransactions}
+          fundTransactions={fundTransactions}
+          totalSavingsLiquidFunds={totalSavingsLiquidFunds}
           idfcItems={idfcItems}
-          assetItems={assetItems}
           onAddBankItem={handleAddBankItem}
           onUpdateBankItem={handleUpdateBankItem}
           onDeleteBankItem={handleDeleteBankItem}
-          onAddAssetItem={handleAddAssetItem}
-          onUpdateAssetItem={handleUpdateAssetItem}
-          onDeleteAssetItem={handleDeleteAssetItem}
         />
       </div>
     </main>

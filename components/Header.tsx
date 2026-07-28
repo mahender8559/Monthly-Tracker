@@ -3,9 +3,9 @@
 import Link from 'next/link';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
-interface HeaderProps { selectedMonth: string; months: string[]; onMonthChange: (month: string) => void; onRollover: () => void; onSignOut: () => void; }
+interface HeaderProps { selectedMonth: string; months: string[]; cycleStartDay: number; cycleLabel: string; onMonthChange: (month: string) => void; onCycleStartDayChange: (day: number) => void; onRollover: () => void; onSignOut: () => void; }
 
-export function Header({ selectedMonth, months, onMonthChange, onRollover, onSignOut }: HeaderProps) {
+export function Header({ selectedMonth, months, cycleStartDay, cycleLabel, onMonthChange, onCycleStartDayChange, onRollover, onSignOut }: HeaderProps) {
   return <header className="relative mb-6 overflow-hidden rounded-2xl border border-indigo-900/50 bg-gradient-to-r from-slate-900 via-indigo-900 to-slate-900 px-6 py-8 text-white shadow-xl md:mb-8 md:px-7 md:py-10">
     <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1579532537598-459ecdaf39cc?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center opacity-20 mix-blend-overlay" />
     <div className="relative flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -15,6 +15,13 @@ export function Header({ selectedMonth, months, onMonthChange, onRollover, onSig
         <select value={selectedMonth} onChange={(event) => onMonthChange(event.target.value)} aria-label="Selected month" className="rounded-lg border border-indigo-400/30 bg-indigo-600/80 px-4 py-2.5 text-sm font-bold text-white outline-none focus:ring-2 focus:ring-white/50">
           {months.map((month) => <option key={month} value={month} className="bg-slate-900">{month}</option>)}
         </select>
+        <label className="flex items-center gap-2 rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-indigo-100" title="The cycle ends on the day before this date in the following month">
+          Cycle starts
+          <select value={cycleStartDay} onChange={(event) => onCycleStartDayChange(Number(event.target.value))} className="bg-transparent font-bold text-white outline-none">
+            {Array.from({ length: 31 }, (_, index) => index + 1).map((day) => <option key={day} value={day} className="bg-slate-900">{day}</option>)}
+          </select>
+          <span className="text-indigo-200">({cycleLabel})</span>
+        </label>
         <ThemeToggle />
         <Link href="/actual-expenses" className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">Expenses</Link>
         <Link href="/settings" className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">Categories Manager</Link>

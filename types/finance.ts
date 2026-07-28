@@ -10,7 +10,7 @@ export interface LedgerEntry {
 }
 
 export interface OverallStats { investments: number; savings: number; }
-export interface UserSettings { bank_name: string; show_bank_breakdown: boolean; cc_billing_day: number; cc_due_day: number; }
+export interface UserSettings { bank_name: string; show_bank_breakdown: boolean; cc_billing_day: number; cc_due_day: number; billing_cycle_start_day: number; }
 export interface NewEntry { category: string; amount: string; }
 export type NewInputs = Partial<Record<LedgerType, NewEntry>>;
 
