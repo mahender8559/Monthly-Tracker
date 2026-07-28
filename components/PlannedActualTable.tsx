@@ -71,6 +71,7 @@ export function PlannedActualTable({ data, onSavePlanned, className }: Props) {
             const diff = row.planned - row.actual;
             const percent = row.planned > 0 ? (row.actual / row.planned) * 100 : row.actual > 0 ? 100 : 0;
             const isOver = row.actual > row.planned && row.planned > 0;
+            const isBudgetNotSet = row.actual > 0 && row.planned <= 0;
             const isEditing = editingCategory === row.category;
 
             return (
@@ -81,12 +82,14 @@ export function PlannedActualTable({ data, onSavePlanned, className }: Props) {
                     className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
                       isOver
                         ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                        : isBudgetNotSet
+                        ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                         : row.actual === 0
                         ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                         : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
                     }`}
                   >
-                    {isOver ? 'Over Budget' : row.actual === 0 ? 'Unspent' : 'Within Budget'}
+                    {isOver ? 'Budget Exceeded' : isBudgetNotSet ? 'Budget Not Set' : row.actual === 0 ? 'Unspent' : 'Within Budget'}
                   </span>
                 </div>
 
@@ -201,6 +204,7 @@ export function PlannedActualTable({ data, onSavePlanned, className }: Props) {
                 const diff = row.planned - row.actual;
                 const percent = row.planned > 0 ? (row.actual / row.planned) * 100 : row.actual > 0 ? 100 : 0;
                 const isOver = row.actual > row.planned && row.planned > 0;
+                const isBudgetNotSet = row.actual > 0 && row.planned <= 0;
                 const isEditing = editingCategory === row.category;
 
                 return (
@@ -292,12 +296,14 @@ export function PlannedActualTable({ data, onSavePlanned, className }: Props) {
                         className={`inline-block rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase ${
                           isOver
                             ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                            : isBudgetNotSet
+                            ? 'bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300'
                             : row.actual === 0
                             ? 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
                             : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
                         }`}
                       >
-                        {isOver ? 'Over Budget' : row.actual === 0 ? 'Unspent' : 'Within Budget'}
+                        {isOver ? 'Budget Exceeded' : isBudgetNotSet ? 'Budget Not Set' : row.actual === 0 ? 'Unspent' : 'Within Budget'}
                       </span>
                     </td>
                   </tr>

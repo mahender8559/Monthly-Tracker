@@ -484,12 +484,8 @@ export default function Dashboard() {
     return acc;
   }, {});
 
-  const allCategoryNames = categories.map((c) => c.name);
-  const _plannedActualKeys = Array.from(new Set([
-    ...allCategoryNames,
-    ...Object.keys(plannedByCategory),
-    ...Object.keys(actualByCategory)
-  ]));
+  const allCategoryNames = categories.filter((category) => category.show_in_comparison).map((category) => category.name);
+  const _plannedActualKeys = allCategoryNames;
   const plannedActualData = _plannedActualKeys.map((category) => ({
     category,
     planned: plannedByCategory[category] ?? 0,

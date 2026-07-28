@@ -10,6 +10,7 @@ import { useCategories } from '@/hooks/use-categories';
 import { useMonthOptions } from '@/hooks/use-month-options';
 import type { Category, Transaction, TransactionDraft } from '@/types/finance';
 import { formatCurrency } from '@/utils/finance';
+import { getBillingCycle } from '@/utils/billing-cycle';
 
 const CATEGORY_COLORS = ['#6366f1', '#3b82f6', '#06b6d4', '#10b981', '#22c55e', '#eab308', '#f97316', '#ef4444', '#ec4899', '#8b5cf6'];
 
@@ -21,6 +22,7 @@ export default function ActualExpensesPage() {
   const [loading, setLoading] = useState(false);
   const [modal, setModal] = useState<'new' | Transaction | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [billingCycleStartDay, setBillingCycleStartDay] = useState(1);
   const months = useMonthOptions();
   const { categories, loading: categoriesLoading, refresh: refreshCategories } = useCategories(session?.user.id);
 
@@ -31,20 +33,34 @@ export default function ActualExpensesPage() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!session) return;
+    supabase.from('user_settings').select('billing_cycle_start_day').eq('user_id', session.user.id).single()
+      .then(({ data }) => {
+        const cycleDay = data?.billing_cycle_start_day || 1;
+        setBillingCycleStartDay(cycleDay);
+        const today = new Date();
+        const cycleEndMonth = new Date(today.getFullYear(), today.getMonth() + (today.getDate() >= cycleDay ? 1 : 0), 1);
+        setMonth(cycleEndMonth.toLocaleString('en-US', { month: 'long', year: 'numeric' }));
+      });
+  }, [session]);
+
   const refreshTransactions = useCallback(async () => {
     if (!session) return;
     setLoading(true);
+    const cycle = getBillingCycle(month, billingCycleStartDay);
     const { data, error } = await supabase
       .from('transactions')
       .select('*, category:categories(*)')
       .eq('user_id', session.user.id)
-      .eq('month', month)
+      .gte('date', cycle.startDate)
+      .lt('date', cycle.endDateExclusive)
       .eq('transaction_type', 'Actual Expense')
       .order('date', { ascending: false });
     if (error) alert(error.message);
     setTransactions((data ?? []) as Transaction[]);
     setLoading(false);
-  }, [month, session]);
+  }, [month, session, billingCycleStartDay]);
 
   const handleCreateCategory = useCallback(async (categoryData: { name: string; icon: string }) => {
     if (!session) return null;
@@ -97,7 +113,7 @@ export default function ActualExpensesPage() {
       amount: Number(draft.amount),
       notes: draft.notes || null,
       user_id: session.user.id,
-      month: new Date(`${draft.date}T00:00:00`).toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+      month,
       transaction_type: 'Actual Expense',
     };
 
@@ -147,6 +163,7 @@ export default function ActualExpensesPage() {
   }
 
   const total = transactions.reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+  const cycleLabel = getBillingCycle(month, billingCycleStartDay).label;
 
   return (
     <main className="min-h-screen bg-slate-50 p-4 dark:bg-slate-950 sm:p-6">
@@ -157,7 +174,7 @@ export default function ActualExpensesPage() {
               ← Dashboard
             </Link>
             <h1 className="mt-1 text-2xl font-black">Actual Expenses</h1>
-            <p className="mt-1 text-sm text-indigo-200">Record expenses with your managed categories.</p>
+            <p className="mt-1 text-sm text-indigo-200">Cycle: {cycleLabel}</p>
           </div>
 
           <div className="flex flex-wrap gap-2">
@@ -189,7 +206,7 @@ export default function ActualExpensesPage() {
         </header>
 
         <section className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{month} actual spending</p>
+          <p className="text-xs font-bold uppercase tracking-widest text-slate-500 dark:text-slate-400">{month} cycle spending ({cycleLabel})</p>
           <p className="mt-1 text-3xl font-black text-rose-600 dark:text-rose-400">₹{formatCurrency(total)}</p>
         </section>
 
@@ -197,7 +214,7 @@ export default function ActualExpensesPage() {
           <p className="py-16 text-center text-slate-500">Loading expenses…</p>
         ) : grouped.length === 0 ? (
           <section className="rounded-2xl border border-dashed border-slate-300 bg-white p-12 text-center dark:border-slate-700 dark:bg-slate-900">
-            <p className="font-semibold text-slate-600 dark:text-slate-300">No actual expenses for {month}.</p>
+            <p className="font-semibold text-slate-600 dark:text-slate-300">No actual expenses for the {month} cycle ({cycleLabel}).</p>
             <button onClick={() => setModal('new')} className="mt-4 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white">
               Add your first expense
             </button>

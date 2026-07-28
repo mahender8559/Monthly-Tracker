@@ -100,7 +100,7 @@ export function CategoryManager({ userId, categories, onRefresh, supabase }: Pro
 
       <div className="space-y-2">
         {categories.map((category) => (
-          <div key={category.id} className="grid items-center gap-2 rounded-xl border border-slate-100 p-3 dark:border-slate-800 sm:grid-cols-[12px_54px_1fr_auto]">
+          <div key={category.id} className="grid items-center gap-2 rounded-xl border border-slate-100 p-3 dark:border-slate-800 sm:grid-cols-[12px_54px_1fr_auto_auto]">
             <span className="h-8 w-2 rounded-full" style={{ backgroundColor: category.color }} />
 
             <input
@@ -123,6 +123,16 @@ export function CategoryManager({ userId, categories, onRefresh, supabase }: Pro
               }}
               className="rounded-lg bg-slate-100 p-2 dark:bg-slate-800"
             />
+
+            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={category.show_in_comparison}
+                onChange={(event) => void updateCategory(category.id, { show_in_comparison: event.target.checked })}
+                className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+              />
+              Show in comparison
+            </label>
 
             <div className="flex items-center justify-end gap-3">
               {category.is_default ? <span className="text-xs font-semibold text-slate-400">Required</span> : <button

@@ -22,6 +22,7 @@ export interface Category {
   color: string;
   display_order: number;
   is_default: boolean;
+  show_in_comparison: boolean;
   created_at: string;
 }
 
