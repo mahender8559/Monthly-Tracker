@@ -1,0 +1,23 @@
+{
+  "name": "Budget Dashboard",
+  "short_name": "Budget",
+  "description": "My secure personal finance tracker",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#425b8f",
+  "icons": [
+    {
+      "src": "https://www.shareicon.net/data/128x128/2016/07/08/117367_logo_512x512.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "https://www.shareicon.net/data/512x512/2016/07/08/117367_logo_512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
