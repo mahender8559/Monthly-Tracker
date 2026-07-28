@@ -43,7 +43,7 @@ export default function Dashboard() {
   const [newInputs, setNewInputs] = useState<NewInputs>({});
   const [overallStats, setOverallStats] = useState<OverallStats>({ investments: 0, savings: 0 });
   const [bankName, setBankName] = useState('IDFC Account Money Breakdown');
-  const [showBankBreakdown, setShowBankBreakdown] = useState(true);
+  const [showBankBreakdown, setShowBankBreakdown] = useState(false);
   const [ccBillingDay, setCcBillingDay] = useState(15);
   const [ccDueDay, setCcDueDay] = useState(5);
   const [billingCycleStartDay, setBillingCycleStartDay] = useState(1);
@@ -72,13 +72,14 @@ export default function Dashboard() {
     const { data } = await supabase.from('user_settings').select('*').eq('user_id', session.user.id).single();
     if (data) {
       setBankName(data.bank_name);
-      setShowBankBreakdown(data.show_bank_breakdown);
+      setShowBankBreakdown(data.show_bank_breakdown === true);
       setCcBillingDay(data.cc_billing_day || 15);
       setCcDueDay(data.cc_due_day || 5);
       setBillingCycleStartDay(data.billing_cycle_start_day || 1);
     } else {
-      await supabase.from('user_settings').insert([{ user_id: session.user.id, bank_name: 'IDFC Account Money Breakdown', show_bank_breakdown: true, cc_billing_day: 15, cc_due_day: 5, billing_cycle_start_day: 1 }]);
+      await supabase.from('user_settings').insert([{ user_id: session.user.id, bank_name: 'IDFC Account Money Breakdown', show_bank_breakdown: false, cc_billing_day: 15, cc_due_day: 5, billing_cycle_start_day: 1 }]);
       setBankName('IDFC Account Money Breakdown');
+      setShowBankBreakdown(false);
     }
   }, [session]);
 
@@ -101,10 +102,16 @@ export default function Dashboard() {
     }, 0));
     const monthEntries = (monthly ?? []) as LedgerEntry[];
 
-    // Carry over or initialize IDFC Breakdown for this month
+    const { data: userSettings } = await supabase
+      .from('user_settings')
+      .select('show_bank_breakdown')
+      .eq('user_id', session.user.id)
+      .maybeSingle();
+
+    // Carry over or initialize IDFC Breakdown for this month only when enabled for the user.
     const hasIdfcInMonth = monthEntries.some((e) => e.type === 'IDFC Breakdown');
     const idfcMonthKey = `idfc_init_${session.user.id}_${month}`;
-    if (!hasIdfcInMonth && typeof window !== 'undefined' && !localStorage.getItem(idfcMonthKey)) {
+    if (userSettings?.show_bank_breakdown === true && !hasIdfcInMonth && typeof window !== 'undefined' && !localStorage.getItem(idfcMonthKey)) {
       localStorage.setItem(idfcMonthKey, 'true');
       const { data: existingIdfc } = await supabase
         .from('ledger')
@@ -410,7 +417,7 @@ export default function Dashboard() {
     setLedgerData([]);
     setOverallStats({ investments: 0, savings: 0 });
     setBankName('IDFC Account Money Breakdown');
-    setShowBankBreakdown(true);
+    setShowBankBreakdown(false);
   }
 
   const incomeTotal = sumEntries(ledgerData, 'Income');
@@ -551,6 +558,7 @@ export default function Dashboard() {
           months={monthOptions}
           cycleStartDay={billingCycleStartDay}
           cycleLabel={billingCycle.label}
+          userEmail={session.user.email}
           onMonthChange={setSelectedMonth}
           onCycleStartDayChange={handleBillingCycleStartDayChange}
           onRollover={handleRollover}
@@ -583,13 +591,13 @@ export default function Dashboard() {
           onDeleteTransaction={handleDeleteTransaction}
         />
 
-        {/* Section 4: IDFC Account Money Breakdown & Asset Holdings */}
         <ExcelBreakdownCards
           bankName={bankName}
           creditCardTransactions={creditCardTransactions}
           fundTransactions={fundTransactions}
           totalSavingsLiquidFunds={totalSavingsLiquidFunds}
           idfcItems={idfcItems}
+          showBankBreakdown={showBankBreakdown}
           onAddBankItem={handleAddBankItem}
           onUpdateBankItem={handleUpdateBankItem}
           onDeleteBankItem={handleDeleteBankItem}
