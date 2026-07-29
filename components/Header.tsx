@@ -23,6 +23,7 @@ export function Header({ selectedMonth, months, cycleStartDay, cycleLabel, userE
         </label>
         <ThemeToggle />
         <Link href="/actual-expenses" className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">Expenses</Link>
+        <Link href="/export" className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">Export</Link>
         <Link href="/settings" className="rounded-lg border border-white/20 bg-white/10 px-3 py-2 text-sm font-semibold text-white backdrop-blur transition hover:bg-white/20">Categories Manager</Link>
         <button onClick={onSignOut} className="px-2 py-2 text-sm text-indigo-200 underline-offset-4 transition hover:text-white hover:underline">Sign out</button>
       </div>
