@@ -359,24 +359,6 @@ export default function Dashboard() {
     else setLedgerData((current) => current.map((entry) => entry.id === item.id ? { ...entry, type: 'Actual Expense', month: selectedMonth } : entry));
   }
 
-  async function handleRollover() {
-    if (!confirm("Copy 'Income' and 'Planned Expenses' categories from the previous month? (Amounts will be set to ₹0)")) return;
-    const prior = new Date(`${selectedMonth} 1`);
-    prior.setMonth(prior.getMonth() - 1);
-    const previousMonth = prior.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-    const { data } = await supabase.from('ledger').select('category, type').eq('month', previousMonth).in('type', ['Income', 'Planned Expense']);
-    if (!data?.length) return alert(`No Income or Planned Expenses found in ${previousMonth}.`);
-    const categoriesSet = new Set(ledgerData.map((item) => item.category.toLowerCase()));
-    const additions = data.filter((item) => !categoriesSet.has(item.category.toLowerCase())).map((item) => ({ month: selectedMonth, category: item.category, amount: 0, type: item.type, user_id: session?.user.id }));
-    if (!additions.length) return alert('All categories from the previous month already exist in this month.');
-    const { data: inserted, error } = await supabase.from('ledger').insert(additions).select();
-    if (error) alert(`Error copying: ${error.message}`);
-    else if (inserted) {
-      setLedgerData((current) => [...current, ...(inserted as LedgerEntry[])]);
-      alert(`Successfully copied ${inserted.length} categories!`);
-    }
-  }
-
   async function handleRenameBank() {
     const name = prompt('Enter your bank name:', bankName);
     if (!name?.trim() || !session) return;
@@ -561,7 +543,6 @@ export default function Dashboard() {
           userEmail={session.user.email}
           onMonthChange={setSelectedMonth}
           onCycleStartDayChange={handleBillingCycleStartDayChange}
-          onRollover={handleRollover}
           onSignOut={handleSignOut}
         />
 
