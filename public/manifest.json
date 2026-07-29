@@ -8,14 +8,14 @@
   "theme_color": "#425b8f",
   "icons": [
     {
-      "src": "https://www.shareicon.net/data/128x128/2016/07/08/117367_logo_512x512.png",
-      "sizes": "128x128",
+      "src": "/app-icon-192.png",
+      "sizes": "2048x2048",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "https://www.shareicon.net/data/512x512/2016/07/08/117367_logo_512x512.png",
-      "sizes": "512x512",
+      "src": "/app-icon-512.png",
+      "sizes": "1254x1254",
       "type": "image/png",
       "purpose": "any maskable"
     }
